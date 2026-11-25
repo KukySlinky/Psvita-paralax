@@ -101,8 +101,6 @@ static void load_cfg(void) {
 }
 
 static int target_ui_hook(unsigned int a0, unsigned int a1, unsigned int a2, unsigned int a3) {
-    /* Aquí se aplicará el desplazamiento calculado (g_vel_x, g_vel_y, g_level)
-       una vez definido el offset/función objetivo en SceShell. */
     (void)g_level;
     (void)g_vel_x;
     (void)g_vel_y;
@@ -146,7 +144,6 @@ static int sensor_thread(SceSize args, void *argp) {
                 int len = 0;
                 int m_int = (int)(mag2 * 1000.0f);
                 int l_int = (int)(level * 1000.0f);
-                /* Escritura simple sin depender de snprintf externo */
                 line[len++] = 'm'; line[len++] = '=';
                 if (m_int < 0) { line[len++] = '-'; m_int = -m_int; }
                 char tmp[16];
