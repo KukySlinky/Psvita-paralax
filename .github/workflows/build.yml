@@ -1,0 +1,26 @@
+name: Build gyroicons
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: vitasdk/vitasdk:latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build plugin
+        run: |
+          mkdir -p build && cd build
+          cmake ..
+          make -j2
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gyroicons
+          path: build/gyroicons.suprx
