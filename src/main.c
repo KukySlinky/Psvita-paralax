@@ -16,9 +16,9 @@ static SceUID g_thread = -1;
 static SceUID g_hook = -1;
 static tai_hook_ref_t g_ref;
 
-static float g_threshold = 0.35f;
-static float g_attack = 0.35f;
-static float g_decay = 0.06f;
+static float g_threshold = 0.05f;
+static float g_attack = 0.45f;
+static float g_decay = 0.08f;
 static float g_minrate = 0.0f;
 static int g_log = 1;
 static unsigned int g_offset = 0;
@@ -100,6 +100,30 @@ static void load_cfg(void) {
     if (g_minrate > 1.0f) g_minrate = 1.0f;
 }
 
+static int append_int(char *dst, int pos, int val) {
+    if (val < 0) {
+        dst[pos++] = '-';
+        val = -val;
+    }
+    char tmp[16];
+    int ti = 0;
+    do {
+        tmp[ti++] = (char)('0' + (val % 10));
+        val /= 10;
+    } while (val > 0 && ti < 15);
+    while (ti > 0) {
+        dst[pos++] = tmp[--ti];
+    }
+    return pos;
+}
+
+static int append_str(char *dst, int pos, const char *src) {
+    while (*src) {
+        dst[pos++] = *src++;
+    }
+    return pos;
+}
+
 static int target_ui_hook(unsigned int a0, unsigned int a1, unsigned int a2, unsigned int a3) {
     (void)g_level;
     (void)g_vel_x;
@@ -116,14 +140,17 @@ static int sensor_thread(SceSize args, void *argp) {
     SceUID log_fd = -1;
     int tick = 0;
 
-    sceMotionStartSampling();
+    int start_rc = sceMotionStartSampling();
+    sceMotionSetAngleThreshold(0.0f);
+    sceMotionSetDeadband(0.0f);
 
     if (g_log) {
         log_fd = sceIoOpen(LOG_PATH, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0777);
     }
 
     while (g_run) {
-        if (sceMotionGetState(&ms) == 0) {
+        int rc = sceMotionGetState(&ms);
+        if (rc == 0) {
             float x = ms.angularVelocity.x;
             float y = ms.angularVelocity.y;
             float z = ms.angularVelocity.z;
@@ -142,21 +169,26 @@ static int sensor_thread(SceSize args, void *argp) {
             if (log_fd >= 0 && (++tick % 10) == 0) {
                 char line[128];
                 int len = 0;
-                int m_int = (int)(mag2 * 1000.0f);
-                int l_int = (int)(level * 1000.0f);
-                line[len++] = 'm'; line[len++] = '=';
-                if (m_int < 0) { line[len++] = '-'; m_int = -m_int; }
-                char tmp[16];
-                int ti = 0;
-                do { tmp[ti++] = (char)('0' + (m_int % 10)); m_int /= 10; } while (m_int > 0);
-                while (ti > 0) line[len++] = tmp[--ti];
-                line[len++] = ' '; line[len++] = 'l'; line[len++] = '=';
-                ti = 0;
-                do { tmp[ti++] = (char)('0' + (l_int % 10)); l_int /= 10; } while (l_int > 0);
-                while (ti > 0) line[len++] = tmp[--ti];
+                len = append_str(line, len, "m=");
+                len = append_int(line, len, (int)(mag2 * 10000.0f));
+                len = append_str(line, len, " l=");
+                len = append_int(line, len, (int)(level * 1000.0f));
+                len = append_str(line, len, " x=");
+                len = append_int(line, len, (int)(x * 1000.0f));
+                len = append_str(line, len, " y=");
+                len = append_int(line, len, (int)(y * 1000.0f));
                 line[len++] = '\n';
                 sceIoWrite(log_fd, line, (SceSize)len);
             }
+        } else if (log_fd >= 0 && (++tick % 20) == 0) {
+            char line[128];
+            int len = 0;
+            len = append_str(line, len, "start=");
+            len = append_int(line, len, start_rc);
+            len = append_str(line, len, " err=");
+            len = append_int(line, len, rc);
+            line[len++] = '\n';
+            sceIoWrite(log_fd, line, (SceSize)len);
         }
         sceKernelDelayThread(16000);
     }
